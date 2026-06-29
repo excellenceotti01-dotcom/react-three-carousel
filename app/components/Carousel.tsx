@@ -6,11 +6,30 @@ import { useFrame, useThree } from "@react-three/fiber"
 import * as Three from "three"
 import gsap from "gsap"
 import { CarouselProvider, useCarousel } from "./context"
+
+// SCROLL FIX:
+// The original handleWheel just accumulated `e.deltaY * 0.15` straight onto
+// a running progress total with no debounce or step-locking. That meant a
+// single physical scroll gesture (especially on a trackpad, which can emit
+// many wheel events in a quick burst) could add up to several items' worth
+// of movement before the user could react — i.e. it was possible to scroll
+// straight past one or more items unintentionally.
+//
+// Fix: scroll input is now discrete-step. Each wheel gesture moves exactly
+// ONE item forward or back (a snap to the next integer "step"), and further
+// wheel input is ignored for a short cooldown window afterward, giving the
+// GSAP transition time to settle before another step can register. This is
+// the same fix already validated in the 2D filmstrip component.
+
+const STEP_COOLDOWN_MS = 900
+
 function Carousel() {
   const rootGroupRef = useRef<Three.Group | null>(null)
   const progressRef = useRef(0)
   const prevProgressRef = useRef(0)
   const scrollSpeedRef = useRef(0)
+  const lockedRef = useRef(false)
+  const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const textures = images.map((img) => useTexture(img))
   const { viewport } = useThree()
   const items = rootGroupRef.current?.children || []
@@ -18,15 +37,31 @@ function Carousel() {
 
   const { settings, activeIndex } = useCarousel()
 
+  const stepSize = totalItems > 0 ? 100 / totalItems : 100
+
+  const lockFor = (ms: number) => {
+    lockedRef.current = true
+    if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current)
+    unlockTimerRef.current = setTimeout(() => {
+      lockedRef.current = false
+    }, ms)
+  }
+
   const handleWheel = (e: WheelEvent) => {
     if (activeIndex !== null) return
-    const delta = e.deltaY * 0.15
-    let newProgress = progressRef.current + delta
+    if (lockedRef.current) return
+    if (Math.abs(e.deltaY) < 2) return // ignore near-zero noise events
 
-    // snapp progress to the nearest item and clamp it, so that progress is between 0 and 100
-    newProgress = Math.round(newProgress)
+    const direction = e.deltaY > 0 ? 1 : -1
+    let newProgress = progressRef.current + direction * stepSize
+
+    // Snap to the nearest whole item and clamp between 0 and 100, exactly
+    // one step away from where we currently are.
+    newProgress = Math.round(newProgress / stepSize) * stepSize
     newProgress = Math.max(0, Math.min(100, newProgress))
     progressRef.current = newProgress
+
+    lockFor(STEP_COOLDOWN_MS)
   }
 
   useFrame(() => {
@@ -83,7 +118,6 @@ function Carousel() {
         duration: 2,
         ease: "power3.out",
       })
-      //   material.uniforms.uScrollSpeed.value = scrollSpeed
 
       // uScrollSpeed
       gsap.to(material.uniforms.uScrollSpeed, {
@@ -173,3 +207,4 @@ export const WrappedCarousel = () => {
     </CarouselProvider>
   )
 }
+
