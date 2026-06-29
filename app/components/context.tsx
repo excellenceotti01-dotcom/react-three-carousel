@@ -43,6 +43,14 @@ export const useCarousel = () => {
   return context
 }
 
+// NOTE: the original repo's dat.gui debug panel (initGUI / `import("dat.gui")`)
+// has been removed entirely here. It's a dev-only tweaking tool the author
+// used while building the effect — it was never meant to be visible to end
+// users, and is what was showing up as an unwanted "settings control window"
+// on top of the carousel. All the values it let you tweak live (width,
+// height, rotation, item gap, parallax/floating toggles) are now just fixed
+// values from settings.ts, same as before, just without the visible UI.
+
 export const CarouselProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -57,105 +65,12 @@ export const CarouselProvider: React.FC<{ children: ReactNode }> = ({
     enableParallax: true,
   })
   const isActive = activeIndex !== null
+
   const toggleParallax = () =>
     setSettings((prev) => ({ ...prev, enableParallax: !prev.enableParallax }))
 
   const toggleFloating = () =>
     setSettings((prev) => ({ ...prev, enableFloating: !prev.enableFloating }))
-
-  let gui: dat.GUI | null = null
-
-  const initGUI = async () => {
-    const dat = await import("dat.gui")
-    if (gui) return
-    gui = new dat.GUI()
-    const settingsFolder = gui.addFolder("Carousel Settings")
-    settingsFolder
-      .add(settings, "width", 0.5, 10, 0.1)
-      .name("Item Width")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          width: newValue,
-        }))
-      })
-
-    settingsFolder
-      .add(settings, "height", 0.5, 10, 0.1)
-      .name("Item Height")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          height: newValue,
-        }))
-      })
-
-    // rotation
-    settingsFolder
-      .add(settings.rotation, "0", -Math.PI, Math.PI, 0.01)
-      .name("Rotation X")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          rotation: [newValue, prev.rotation[1], prev.rotation[2]],
-        }))
-      })
-    settingsFolder
-      .add(settings.rotation, "1", -Math.PI, Math.PI, 0.01)
-      .name("Rotation Y")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          rotation: [prev.rotation[0], newValue, prev.rotation[2]],
-        }))
-      })
-    settingsFolder
-      .add(settings.rotation, "2", -Math.PI, Math.PI, 0.01)
-      .name("Rotation Z")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          rotation: [prev.rotation[0], prev.rotation[1], newValue],
-        }))
-      })
-
-    // item gap
-    settingsFolder
-      .add(settings, "itemGap", 0, 10, 0.1)
-      .name("Item Gap")
-      .onChange((newValue) => {
-        setSettings((prev) => ({
-          ...prev,
-          itemGap: newValue,
-        }))
-      })
-
-    // parallax
-    settingsFolder
-      .add(settings, "enableParallax")
-      .name("Enable Parallax")
-      .onChange(() => {
-        toggleParallax()
-      })
-
-    // floating
-    settingsFolder
-      .add(settings, "enableFloating")
-      .name("Enable Floating")
-      .onChange(() => {
-        toggleFloating()
-      })
-    settingsFolder.open()
-  }
-  useEffect(() => {
-    initGUI()
-
-    return () => {
-      if (gui) {
-        gui.destroy()
-      }
-    }
-  }, [])
 
   useEffect(() => {
     setSettings((prev) => ({
@@ -180,3 +95,4 @@ export const CarouselProvider: React.FC<{ children: ReactNode }> = ({
     </CarouselContext.Provider>
   )
 }
+
